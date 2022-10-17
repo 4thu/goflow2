@@ -199,6 +199,9 @@ func ConvertNetFlowDataSet(version uint16, baseTime uint32, uptime uint32, recor
 
 		switch df.Type {
 
+		case netflow.NFV9_FIELD_SAMPLING_INTERVAL:
+			DecodeUNumber(v, &(flowMessage.SamplingRate))
+
 		case netflow.IPFIX_FIELD_observationPointId:
 			DecodeUNumber(v, &(flowMessage.ObservationPointID))
 
@@ -554,7 +557,18 @@ func ProcessMessageNetFlowConfig(msgDec interface{}, samplingRateSys SamplingRat
 		}
 		for _, fmsg := range flowMessageSet {
 			fmsg.SequenceNum = seqnum
-			fmsg.SamplingRate = uint64(samplingRate)
+			if samplingRate > 0 {
+				fmsg.SamplingRate = uint64(samplingRate)
+
+			} else if fmsg.SamplingRate > 65535 {
+				buf := make([]byte, 4)
+				binary.LittleEndian.PutUint32(buf, uint32(fmsg.SamplingRate))
+				fmsg.SamplingRate = uint64(binary.BigEndian.Uint32(buf))
+
+			} else if fmsg.SamplingRate == 0 {
+				fmsg.SamplingRate = 1
+
+			}
 		}
 	case netflow.IPFIXPacket:
 		dataFlowSet, _, _, optionDataFlowSet := SplitIPFIXSets(msgDecConv)
